@@ -1,0 +1,74 @@
+---
+title: "Final Presentation"
+author: "Aiden Leamer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(RColorBrewer)
+load("Master.RData")
+main <- combined5 %>% 
+  filter(grepl(" CIN ",NAME)) %>% 
+  select(NAME,`PRC #`:PERCENT,`Liz           Keating`,total.pop.x:geometry)
+
+main <- main %>% 
+  mutate(votePercent = `Liz           Keating`/`BALLOTS CAST TOTAL`) %>% 
+  mutate(buckets = ifelse(votePercent >= 0.43, "base",
+                         ifelse(votePercent <= 0.26, "residual", "swing"))) %>% 
+  mutate(white.prop = white.pop/total.pop.x) %>% 
+  mutate(black.prop = black.pop/total.pop.x) %>% 
+  mutate(moved = (diffState+diffCounty+diffState)/mob.total)
+```
+
+```{r}
+reg <-
+  lm(votePercent~white.prop + density + mean.size + moved, data = main)
+summary(reg)
+
+
+main %>% 
+  mutate(predictions = predict(reg, main),
+         residuals = votePercent - predictions) %>% 
+  ggplot(aes(fill = residuals))+
+  geom_sf()+
+  scale_fill_gradientn(colours=brewer.pal(n=9,name="BuGn"),na.value = "transparent")+
+  labs(title = "Residuals from linear model")
+
+main %>% 
+  ggplot(aes(votePercent))+
+  geom_histogram()+
+  scale_x_continuous(breaks = seq(0, .7, by = .05), labels = seq(0, .7, by = .05))+
+  labs( x = "Percent of vote")
+
+main %>% 
+  ggplot(aes(fill = buckets))+
+  geom_sf()+
+  labs(fill = "Precinct", 
+       caption = "")+
+  scale_fill_manual(values = c("base" = "#FF5733", "swing" = "#FFD700", "residual" = "#4169E1"))
+
+
+lizbase <- main %>% 
+  filter(buckets == "base")
+propbasevotes = sum(lizbase$`Liz           Keating`,na.rm = T)/sum(main$`Liz           Keating`,na.rm = T)
+lizswing <- main %>% 
+  filter(buckets == "swing")
+propswingvotes = sum(lizswing$`Liz           Keating`,na.rm = T)/sum(main$`Liz           Keating`,na.rm = T)
+lizresidual <- main %>% 
+  filter(buckets == "residual")
+propresidualvotes = sum(lizresidual$`Liz           Keating`,na.rm = T)/sum(main$`Liz           Keating`,na.rm = T)
+basevotes2023 = propbasevotes*30573
+swingvotes2023 = propswingvotes*30573
+residualvotes2023 = propresidualvotes*30573
+
+lizbase2 <- lizbase %>% 
+  select(NAME:`Liz           Keating`,votePercent)
+
+lizswing2 <- lizswing %>% 
+  select(NAME:`Liz           Keating`,votePercent)
+```
+
+
